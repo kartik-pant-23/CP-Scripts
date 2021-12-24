@@ -1,0 +1,127 @@
+#!/bin/bash
+# This script will check the directory name and then using the codeforces contest Id, and problem name, it will take the input using web scraping and then run the input and check its correctness with the output.
+
+# Defining some colors for higlighting the output
+RED='\033[0;31m'
+GREEN='\033[0;032m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+UNDERLINE='\e[4m'
+
+# Checking if we have proper arguments list or not
+if [ $# -ne 2 ]; then
+    echo "$(basename $0): improper arguments list"
+    echo "Usage: cf_run 'ouput file' 'problem name(ex. A,B...)'"
+    exit -1
+fi
+
+# Assigning variables
+curl=$(which curl)
+programFile=$1
+inputTextFile="input.txt"
+tempOutputFile="temp.txt"
+outputTextFile="output.txt"
+neededData=""
+url="https://codeforces.com/contest/$(pwd | tr '/' '\n' | tail -1)/problem/$2"
+
+function check_error() {
+    if [ $? -ne 0 ]; then
+        echo -e "$(basename $0): $1"
+        exit -1
+    fi
+}
+# This function scrapes data from the web page 
+function dump_webpage() {
+    echo -e "\n> Fetching sample cases from ${ORANGE}$url${NC}\n"
+
+    # Retreiving and parsing the web page data
+    # STEPS to parse - 
+    # 1) Replace all line breaks with '|' symbol
+    # 2) Get the data between <pre></pre> -- This is where input and output is present
+    # 3) Remove all the HTML tags and replace 'Output' with '=====' -- This separates TestCases and Output
+    local webPageData=$(curl -L $url)
+    check_error "Failure occurred while loading web pages!"
+
+    neededData=$(echo "$webPageData" | tr '\n' '|' | grep -o 'Example.*</pre>' | sed 's/<[^>]*>/\n/g' | sed 's/Examples//g' | sed 's/Example//g' | sed 's/Input/=====/g' | sed 's/Output/=====/g' | tr -s '\n' '|')
+
+    # Checking if the neededData variable is NULL -- This will happen if web page was not loaded correctly
+    if [ -z "$neededData" ]; then
+        echo -e "\n${RED}Error:${NC} Data cannot be parsed!\n${BLUE}Debug:${NC} Make sure you are in correct directory!\n"
+        echo "+-----WEB PAGE DATA-----+"
+        echo $webPageData
+        echo "+-----+-----+-----+-----+"
+        exit -1
+    fi
+}
+
+# This function runs the given compiled file against the scaped test_cases
+function run_test_cases() {
+    echo -e "\n> Running file ${ORANGE}'$programFile'${NC} against sample test cases...\n"
+
+    local data=$(echo -e $neededData | tr -s '=' '\n')
+    local is_input=0
+    local test_case=0
+    while IFS= read -r data_part;
+    do
+        # Clearing input and output file
+        [ `expr $is_input % 2` -eq 0 ] && true > $inputTextFile
+        [ `expr $is_input % 2` -ne 0 ] && true > $tempOutputFile
+
+        [ -z "$data_part" ] && continue
+        if [ "$data_part" != "|" ]; then
+            local lines=$(echo -e $data_part | tr '|' '\n')
+            while IFS= read -r line;
+            do
+                [ -z "$line" ] && continue;
+                if [ `expr $is_input % 2` -eq 0 ]; then 
+                    echo "$line" | cat >> $inputTextFile
+                else
+                    echo "$line" | cat >> $tempOutputFile
+                fi
+            done <<< "$lines"
+
+            # Checking each test case
+            is_input=`expr $is_input + 1`
+            if [ `expr $is_input % 2` -eq 0 ]; then
+                test_case=`expr $test_case + 1`
+                # Running against each input
+                true > $outputTextFile
+                ./$programFile < $inputTextFile > $outputTextFile
+                check_error "Failure occurred while running output file!"
+    
+                # Checking diff between the files
+                local diffOutput=$(diff $outputTextFile $tempOutputFile)
+                local diffLines=$(echo "$diffOutput" | wc -l)
+                if [ $diffLines -gt 1 ]; then
+                    echo -e "--------------------\n>> Output:"
+                    cat $outputTextFile
+                    echo -e "--------------------\n>> Expected:"
+                    cat $tempOutputFile
+                    echo -e "--------------------\n"
+    
+                    echo -e "${RED}\u2718 Failed for test case $test_case!${NC}"
+                    echo -e "--------------------\n>> Output from diff"
+                    echo "$diffOutput"
+                    echo -e "--------------------\n"
+                    exit -1
+                fi
+            fi
+        fi
+    done <<< "$data"
+
+    echo -e "--------------------\n>> Last Input:"
+    cat $inputTextFile
+    echo -e "--------------------\n>> Output:"
+    cat $outputTextFile
+    echo -e "--------------------\n>> Expected:"
+    cat $tempOutputFile
+    echo -e "--------------------\n"
+    echo -e "${GREEN}\u2714 $test_case/$test_case sample test cases passed!\n${NC}"
+}
+
+#####################
+#       MAIN        #
+#####################
+dump_webpage
+run_test_cases
