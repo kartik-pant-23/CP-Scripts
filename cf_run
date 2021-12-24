@@ -94,6 +94,8 @@ function run_test_cases() {
                 local diffOutput=$(diff $outputTextFile $tempOutputFile)
                 local diffLines=$(echo "$diffOutput" | wc -l)
                 if [ $diffLines -gt 1 ]; then
+                    echo -e "--------------------\n>> Input:"
+                    cat $inputTextFile
                     echo -e "--------------------\n>> Output:"
                     cat $outputTextFile
                     echo -e "--------------------\n>> Expected:"
