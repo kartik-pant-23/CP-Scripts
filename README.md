@@ -6,7 +6,7 @@ For now its only `cf_run` script which runs sample test cases taken from problem
 
 | Script | Function |
 |--------|----------|
-|[cf_run](#cf_run) | Runs the sample test cases and shows the status of output|
+|[cf_run](#cf_run) | Runs the sample test cases and shows the status of output for **Codeforces** contests|
 
 ## Usage 
 The scripts have been tested for **Ubuntu 20.04** *(If the script works on your device as well, feel free to add it here!)*. You can follow this given steps to get the things working.
